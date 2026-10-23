@@ -1,0 +1,238 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FitCoach | Smart Fitness Assistant</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10131c;color:#f5f6ff;
+font-family:Arial,sans-serif}
+header{padding:22px 6%;border-bottom:1px solid #303443;
+display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:23px;font-weight:bold;color:#83f5c4}
+main{max-width:1050px;margin:35px auto;padding:0 20px}
+h1{font-size:clamp(30px,5vw,48px);margin-bottom:12px}
+p{color:#b6bfd1;line-height:1.6}
+.layout{display:grid;grid-template-columns:1.2fr 1fr;gap:20px}
+.card{background:#1b202e;border:1px solid #333a4c;
+border-radius:18px;padding:22px;margin-bottom:18px}
+h2{font-size:20px;margin-top:0}
+button,select{padding:13px;border-radius:10px;border:1px solid #424b60;
+background:#282f40;color:white;font-size:15px;cursor:pointer}
+button{background:#83f5c4;color:#10131c;font-weight:bold;border:none}
+button:focus,select:focus{outline:3px solid #fff;outline-offset:3px}
+button:hover{filter:brightness(.92)}
+input{padding:13px;border-radius:10px;background:#10131c;
+color:white;border:1px solid #424b60;min-width:0;flex:1}
+.row{display:flex;gap:10px;margin:12px 0}
+#chat{height:190px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.msg{padding:12px;border-radius:12px;background:#292f40;line-height:1.5}
+.user{background:#174b3b;align-self:flex-end}
+.exercise{padding:12px 0;border-bottom:1px solid #373d4e}
+.exercise:last-child{border:0}
+.small{font-size:13px;color:#aeb8ca}
+#timer{font-size:40px;font-weight:bold;color:#83f5c4;margin:12px 0}
+.pill{display:inline-block;background:#283d39;color:#83f5c4;
+padding:7px 10px;border-radius:20px;font-size:12px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}header{padding:18px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✦ FitCoach</div>
+  <span class="pill">SMART FITNESS</span>
+</header>
+<main>
+  <p class="pill">YOUR PERSONAL WORKOUT ASSISTANT</p>
+  <h1>Feel better.<br>Move smarter.</h1>
+  <p>Tell your fitness coach what you need. Get a simple plan and
+  follow your workout one exercise at a time.</p>
+
+  <div class="layout">
+    <section>
+      <div class="card">
+        <h2>Build your workout</h2>
+        <p>What's your current fitness level?</p>
+        <select id="level" style="width:100%">
+          <option>Beginner</option><option>Intermediate</option>
+        </select>
+        <p>How much time do you have?</p>
+        <select id="duration" style="width:100%">
+          <option value="5">5 minutes</option>
+          <option value="10" selected>10 minutes</option>
+          <option value="15">15 minutes</option>
+        </select>
+        <p>Choose your goal</p>
+        <select id="goal" style="width:100%">
+          <option>General fitness</option>
+          <option>Cardio</option><option>Strength</option>
+          <option>Flexibility</option>
+        </select>
+        <div style="margin-top:18px">
+          <button onclick="makePlan()">Create my plan →</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Chat with FitCoach</h2>
+        <div id="chat" aria-live="polite">
+          <div class="msg">Hi! I'm FitCoach. Tell me your goal,
+          and I'll help you choose a workout.</div>
+        </div>
+        <form class="row" id="chatForm">
+          <input id="message" placeholder="e.g. I need a quick cardio plan"
+          aria-label="Message to FitCoach" required>
+          <button>Send</button>
+        </form>
+      </div>
+    </section>
+
+    <section>
+      <div class="card">
+        <h2>Your workout plan</h2>
+        <p id="summary">Your personalized plan will appear here.</p>
+        <div id="plan"><p class="small">Choose your goal and create a plan.</p></div>
+        <button onclick="startWorkout()" style="width:100%;margin-top:15px">
+          ▶ Start workout
+        </button>
+      </div>
+
+      <div class="card">
+        <h2>Workout in progress</h2>
+        <p id="current">Ready when you are.</p>
+        <div id="timer">00:00</div>
+        <div class="row">
+          <button onclick="toggleTimer()" id="pause">Start timer</button>
+          <button onclick="nextExercise()">Next →</button>
+        </div>
+        <p id="progress" class="small">Complete your first session!</p>
+      </div>
+    </section>
+  </div>
+  <p class="small">FitCoach is a prototype. Choose exercises appropriate
+  for your ability and stop if you feel pain or dizziness.</p>
+</main>
+
+<script>
+const routines = {
+  "General fitness": ["March in place","Bodyweight squats","Wall push-ups",
+                      "Standing knee raises","Gentle stretching"],
+  "Cardio": ["March in place","Step jacks","Standing knee raises",
+             "Side steps","Slow marching recovery"],
+  "Strength": ["Wall push-ups","Chair squats","Standing calf raises",
+               "Wall plank","Gentle stretching"],
+  "Flexibility": ["Shoulder rolls","Gentle side bends","Calf stretches",
+                  "Standing quad stretch","Slow breathing"]
+};
+let exercises=[], index=0, seconds=0, interval=null, completed=0;
+
+function addMessage(text,who="bot"){
+  const el=document.createElement("div");
+  el.className="msg"+(who==="user"?" user":"");
+  el.textContent=text;
+  const chat=document.getElementById("chat");
+  chat.appendChild(el);
+  chat.scrollTop=chat.scrollHeight;
+}
+function makePlan(goalOverride){
+  const goal=goalOverride||document.getElementById("goal").value;
+  const level=document.getElementById("level").value;
+  const mins=Number(document.getElementById("duration").value);
+  const all=routines[goal]||routines["General fitness"];
+  const count=Math.min(all.length,Math.max(3,Math.ceil(mins/2)));
+  exercises=all.slice(0,count).map((name,i)=>({
+    name, secs:Math.floor(mins*60/count)
+  }));
+  index=0;
+  document.getElementById("summary").textContent=
+    `${goal} · ${level} · ${mins} minutes`;
+  document.getElementById("plan").replaceChildren();
+  exercises.forEach((e,i)=>{
+    const div=document.createElement("div");
+    div.className="exercise";
+    div.textContent=`${i+1}. ${e.name} — ${Math.round(e.secs/60)} min`;
+    document.getElementById("plan").appendChild(div);
+  });
+  document.getElementById("current").textContent=
+    "Next: "+exercises[0].name;
+  addMessage(`Your ${mins}-minute ${goal.toLowerCase()} plan is ready! `+
+    `I've selected ${count} exercises. Press Start workout when ready.`);
+}
+document.getElementById("chatForm").addEventListener("submit",e=>{
+  e.preventDefault();
+  const input=document.getElementById("message");
+  const text=input.value.trim();
+  if(!text)return;
+  addMessage(text,"user");
+  const lower=text.toLowerCase();
+  let goal="General fitness";
+  if(/cardio|stamina|heart/.test(lower))goal="Cardio";
+  else if(/strength|muscle|strong/.test(lower))goal="Strength";
+  else if(/stretch|flexib|mobility/.test(lower))goal="Flexibility";
+  if(/cardio|strength|muscle|stretch|flexib|mobility|fitness|workout/.test(lower)){
+    document.getElementById("goal").value=goal;
+    makePlan(goal);
+  }else{
+    addMessage("I can help you build a general fitness, cardio, strength "+
+      "or flexibility routine. Choose your goal above to get started.");
+  }
+  input.value="";
+});
+function startWorkout(){
+  if(!exercises.length)makePlan();
+  index=0;seconds=exercises[index].secs;
+  completed=0;showExercise();startTick();
+  addMessage("Your session has started. Follow the timer and select Next when ready.");
+}
+function showExercise(){
+  if(index>=exercises.length){
+    stopTick();
+    document.getElementById("current").textContent="Session complete!";
+    document.getElementById("timer").textContent="✓";
+    completed++;
+    document.getElementById("progress").textContent=
+      "Great work! Sessions completed this visit: "+completed;
+    addMessage("Workout complete! Take a moment to cool down and hydrate.");
+    return;
+  }
+  document.getElementById("current").textContent=
+    `${index+1}/${exercises.length}: ${exercises[index].name}`;
+  document.getElementById("timer").textContent=format(seconds);
+  document.getElementById("progress").textContent=
+    `Exercise ${index+1} of ${exercises.length}`;
+}
+function format(s){
+  return String(Math.floor(s/60)).padStart(2,"0")+":"+
+         String(s%60).padStart(2,"0");
+}
+function startTick(){
+  stopTick();
+  document.getElementById("pause").textContent="Pause";
+  interval=setInterval(()=>{
+    if(seconds>0){seconds--;document.getElementById("timer").textContent=format(seconds);}
+    else{stopTick();addMessage("Time for "+exercises[index].name+
+      " is up. Select Next to continue.");}
+  },1000);
+}
+function stopTick(){
+  if(interval)clearInterval(interval);
+  interval=null;
+  document.getElementById("pause").textContent="Resume";
+}
+function toggleTimer(){
+  if(interval){stopTick();return;}
+  if(!exercises.length){startWorkout();return;}
+  startTick();
+}
+function nextExercise(){
+  if(!exercises.length){makePlan();return;}
+  index++;
+  if(index>=exercises.length){showExercise();return;}
+  seconds=exercises[index].secs;
+  showExercise();startTick();
+}
+</script>
+</body>
+</html>
